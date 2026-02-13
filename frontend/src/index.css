@@ -1,0 +1,176 @@
+/* =========================
+   Global Theme (Professional)
+   ========================= */
+
+:root {
+  --bg: #f4f6fb;
+  --card: #ffffff;
+  --text: #111827;
+  --muted: #6b7280;
+  --dark: #111827;
+  --dark-2: #1f2937;
+  --radius: 16px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Container spacing (looks clean everywhere) */
+.container {
+  max-width: 1100px;
+}
+
+/* =========================
+   Navbar polish
+   ========================= */
+.navbar-brand .brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #22c55e;
+  display: inline-block;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
+}
+
+/* Active tab highlight */
+.nav-active {
+  position: relative;
+}
+
+.nav-active::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 6px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+}
+
+/* =========================
+   Page Header Block (if you use .page-header)
+   ========================= */
+.page-header {
+  background: linear-gradient(135deg, #1f2937, #111827);
+  color: white;
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.9rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+}
+
+/* =========================
+   Cards
+   ========================= */
+.card {
+  background: var(--card);
+  border: 0 !important;
+  border-radius: var(--radius) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.08);
+}
+
+.card .card-title {
+  font-weight: 700;
+}
+
+/* =========================
+   Forms (inputs look modern)
+   ========================= */
+.form-control,
+.form-select {
+  border-radius: 12px !important;
+  padding: 10px 12px;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: rgba(17, 24, 39, 0.35);
+  box-shadow: 0 0 0 0.2rem rgba(17, 24, 39, 0.12);
+}
+
+label.form-label {
+  font-weight: 600;
+  color: #374151;
+}
+
+/* =========================
+   Buttons
+   ========================= */
+.btn {
+  border-radius: 12px !important;
+}
+
+.btn-dark {
+  background-color: var(--dark) !important;
+  border-color: var(--dark) !important;
+}
+
+.btn-dark:hover {
+  background-color: var(--dark-2) !important;
+  border-color: var(--dark-2) !important;
+}
+
+.btn-outline-dark {
+  border-color: rgba(17, 24, 39, 0.35) !important;
+}
+
+.btn-outline-dark:hover {
+  background: rgba(17, 24, 39, 0.08) !important;
+}
+
+/* =========================
+   Tables
+   ========================= */
+.table {
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.table th {
+  font-weight: 700;
+  color: #111827;
+  background: rgba(17, 24, 39, 0.04);
+}
+
+.table td {
+  vertical-align: middle;
+}
+
+/* =========================
+   Alerts
+   ========================= */
+.alert {
+  border-radius: 14px;
+}
+
+/* =========================
+   Badge polish
+   ========================= */
+.badge {
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  border-radius: 999px;
+  padding: 6px 10px;
+}
+
+/* =========================
+   Footer (if you still have it)
+   ========================= */
+.app-footer {
+  margin-top: 2.5rem;
+  padding: 1rem 0;
+  color: #6c757d;
+  font-size: 0.875rem;
+  text-align: center;
+}
