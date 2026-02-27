@@ -3,26 +3,45 @@ import PageContainer from "../../components/PageContainer";
 import Loader from "../../components/Loader";
 import AlertMessage from "../../components/AlertMessage";
 
-function getClusterInfo(label) {
-  // Numeric label => Grade + Meaning
-  // 0 -> A (HIGH), 1 -> B (MEDIUM), 2 -> C (LOW)
-  if (label === null || label === undefined) return null;
+function getClusterInfoFromGrade(grade) {
+  if (!grade) return null;
 
-  var n = Number(label);
-  if (!Number.isFinite(n) || n < 0) return null;
+  if (grade === "A") return { grade: "A", meaning: "HIGH Performer", badge: "success", note: "Excellent performance group." };
+  if (grade === "B") return { grade: "B", meaning: "MEDIUM / AVERAGE Performer", badge: "warning", note: "Good, but can improve to reach HIGH." };
+  if (grade === "C") return { grade: "C", meaning: "LOW Performer", badge: "danger", note: "Needs improvement and support plan." };
 
-  if (n === 0) return { grade: "A", meaning: "HIGH Performer", badge: "success", note: "Excellent performance group." };
-  if (n === 1) return { grade: "B", meaning: "MEDIUM / AVERAGE Performer", badge: "warning", note: "Good, but can improve to reach HIGH." };
-  if (n === 2) return { grade: "C", meaning: "LOW Performer", badge: "danger", note: "Needs improvement and support plan." };
-
-  // If k > 3 later, use letters after C
-  return { grade: String.fromCharCode(65 + n), meaning: "Performance Group", badge: "secondary", note: "Additional group based on clustering." };
+  return { grade: grade, meaning: "Performance Group", badge: "secondary", note: "Additional group." };
 }
 
 function formatNum(v) {
   var n = Number(v);
   if (!Number.isFinite(n)) return "—";
   return String(n);
+}
+
+/** -----------------------------------------
+ *  Deterministic performance-based grouping
+ *  -----------------------------------------
+ *  A = HIGH
+ *  B = MEDIUM / AVERAGE
+ *  C = LOW
+ */
+function computeGradeFromRecord(rec) {
+  if (!rec) return null;
+
+  var att = Number(rec.attendancePct || 0);
+  var cgpa = Number(rec.cgpa || 0);
+  var internal = Number(rec.avgInternal || 0);
+  var backlogs = Number(rec.backlogs || 0);
+
+  // HIGH (A): strong overall + no backlogs
+  if (backlogs === 0 && cgpa >= 8 && att >= 75 && internal >= 70) return "A";
+
+  // MEDIUM (B): decent, but not top / slight issues allowed
+  if (backlogs <= 1 && cgpa >= 6.5 && att >= 65) return "B";
+
+  // LOW (C): backlogs, low attendance, low cgpa
+  return "C";
 }
 
 function StudentDashboard() {
@@ -41,18 +60,18 @@ function StudentDashboard() {
   var [err, setErr] = useState("");
 
   var [record, setRecord] = useState(null);
-  var [clusterLabel, setClusterLabel] = useState(null);
+  var [grade, setGrade] = useState(null);
 
   function getToken() {
     return localStorage.getItem("accessToken") || "";
   }
 
-  function buildSuggestions(rec, label) {
+  function buildSuggestions(rec, gradeValue) {
     var tips = [];
 
     if (!rec) {
       tips.push("No academic record found for this term. Ask your faculty to add your record.");
-      tips.push("Once records are available, clustering can be run to generate performance group insights.");
+      tips.push("Once records are available, the system shows your performance group and suggestions.");
       return tips;
     }
 
@@ -79,53 +98,51 @@ function StudentDashboard() {
     if (backlogs > 0) tips.push("Backlogs found. Create a clear plan (daily 1–2 hrs) until cleared.");
     else tips.push("No backlogs. Great! Keep momentum.");
 
-    // Cluster meaning (A/B/C)
-    var info = getClusterInfo(label);
+    var info = getClusterInfoFromGrade(gradeValue);
     if (!info) {
-      tips.push("Cluster not assigned yet. Ask faculty/admin to run clustering for this term.");
+      tips.push("Performance group not available yet (record missing).");
       return tips;
     }
 
-    tips.push("Your cluster group: " + info.grade + " — " + info.meaning + ".");
+    tips.push("Your performance group: " + info.grade + " — " + info.meaning + ".");
 
-    // Cluster-based suggestions
     if (info.grade === "A") {
-      tips.push("You are in the HIGH group. Maintain consistency and aim for top grades + skill building.");
-      tips.push("Try advanced learning: projects, internships, peer mentoring, competitive coding (if relevant).");
+      tips.push("Maintain consistency and aim for top grades + skill building (projects/internships).");
+      tips.push("Try mentoring peers or preparing for placements with DSA + mock interviews.");
     } else if (info.grade === "B") {
-      tips.push("You are in the MEDIUM group. Focus on weak subjects to move into HIGH group.");
-      tips.push("Use a weekly routine: revise 2 units + solve 20 questions + 1 mock test.");
+      tips.push("You are close to HIGH. Improve weak subjects + target 8.0 CGPA and 75% attendance.");
+      tips.push("Weekly routine: revise 2 units + solve 20 questions + 1 mock test.");
     } else if (info.grade === "C") {
-      tips.push("You are in the LOW group. Immediate improvement plan: daily revision + faculty guidance.");
-      tips.push("Make a strict schedule: 2 hrs/day study + clear backlogs + improve attendance.");
+      tips.push("Immediate improvement plan: daily revision + faculty support + clear backlogs.");
+      tips.push("Fix basics first: attendance 75%+, CGPA 6.5+, and internals 60+.");
     }
 
     // Extra pattern-based hints
     if (att < 70 && cgpa >= 7.5) tips.push("You score well but attendance is low—improve attendance to stay eligible.");
     if (att >= 80 && cgpa < 6.5) tips.push("Attendance is good but marks are low—focus on concept clarity + practice.");
-    if (cgpa >= 8 && backlogs === 0) tips.push("Strong performance—try mentoring peers or taking advanced electives.");
+    if (cgpa >= 8 && backlogs === 0) tips.push("Strong performance—try advanced electives or research-style projects.");
 
     return tips;
   }
 
   var suggestions = useMemo(
     function () {
-      return buildSuggestions(record, clusterLabel);
+      return buildSuggestions(record, grade);
     },
-    [record, clusterLabel]
+    [record, grade]
   );
 
   var loadDashboard = async function () {
     setLoading(true);
     setErr("");
     setRecord(null);
-    setClusterLabel(null);
+    setGrade(null);
 
     try {
       var token = getToken();
       if (!token) throw new Error("Please login again.");
 
-      // 1) My Record
+      // My Record
       var recUrl = "/api/records/my?term=" + encodeURIComponent(term);
 
       var recRes = await fetch(recUrl, {
@@ -137,41 +154,12 @@ function StudentDashboard() {
       });
 
       if (!recRes.ok) throw new Error(recJson.message || "Failed to load record");
-      setRecord(recJson.record || null);
 
-      // 2) Cluster label (prefer record.clusterLabel; else fallback latest run)
-      if (recJson.record && (recJson.record.clusterLabel === 0 || recJson.record.clusterLabel === 1 || recJson.record.clusterLabel === 2)) {
-        setClusterLabel(recJson.record.clusterLabel);
-        return;
-      }
+      var rec = recJson.record || null;
+      setRecord(rec);
 
-      // fallback: latest run assignment
-      var runUrl =
-        "/api/clustering/latest?department=" +
-        encodeURIComponent(department) +
-        "&term=" +
-        encodeURIComponent(term);
-
-      var runRes = await fetch(runUrl, {
-        headers: { Authorization: "Bearer " + token }
-      });
-
-      var runJson = await runRes.json().catch(function () {
-        return {};
-      });
-
-      if (runRes.ok && runJson.run && runJson.run.assignments) {
-        var myId = storedUser && (storedUser.id || storedUser._id);
-        var found = runJson.run.assignments.find(function (a) {
-          if (!a) return false;
-          if (a.studentId && typeof a.studentId === "object") return String(a.studentId._id) === String(myId);
-          return String(a.studentId) === String(myId);
-        });
-
-        if (found && (found.clusterLabel === 0 || found.clusterLabel === 1 || found.clusterLabel === 2)) {
-          setClusterLabel(found.clusterLabel);
-        }
-      }
+      // ✅ Compute performance grade from record (NOT random)
+      setGrade(computeGradeFromRecord(rec));
     } catch (e) {
       setErr(e.message || "Failed to load dashboard");
     } finally {
@@ -201,13 +189,12 @@ function StudentDashboard() {
     return "text-muted";
   }
 
-  var clusterInfo = getClusterInfo(clusterLabel);
+  var clusterInfo = getClusterInfoFromGrade(grade);
 
   return React.createElement(
     PageContainer,
     null,
 
-    // Header
     React.createElement(
       "div",
       { className: "d-flex align-items-start align-items-md-center justify-content-between flex-column flex-md-row gap-2 mb-3" },
@@ -220,7 +207,7 @@ function StudentDashboard() {
           { className: "text-muted" },
           "Welcome ",
           storedUser && storedUser.name ? storedUser.name : "Student",
-          ". View your record, cluster and suggestions."
+          ". View your record, performance group and suggestions."
         )
       ),
       React.createElement(
@@ -239,14 +226,14 @@ function StudentDashboard() {
         React.createElement(
           "button",
           { className: "btn btn-outline-dark", onClick: function () { window.location.href = "/student/cluster"; } },
-          "My Cluster"
+          "My Group"
         )
       )
     ),
 
     err ? React.createElement(AlertMessage, { type: "danger", text: err }) : null,
 
-    // Filters row
+    // Filters
     React.createElement(
       "div",
       { className: "card mb-3" },
@@ -352,12 +339,11 @@ function StudentDashboard() {
       )
     ),
 
-    // Record + Cluster + Suggestions
+    // Summary + Group + Suggestions
     React.createElement(
       "div",
       { className: "row g-3" },
 
-      // Summary
       React.createElement(
         "div",
         { className: "col-lg-4" },
@@ -384,7 +370,6 @@ function StudentDashboard() {
         )
       ),
 
-      // Cluster Card
       React.createElement(
         "div",
         { className: "col-lg-4" },
@@ -394,7 +379,7 @@ function StudentDashboard() {
           React.createElement(
             "div",
             { className: "card-body" },
-            React.createElement("h5", { className: "card-title fw-bold mb-2" }, "My Cluster"),
+            React.createElement("h5", { className: "card-title fw-bold mb-2" }, "My Performance Group"),
 
             clusterInfo
               ? React.createElement(
@@ -403,36 +388,26 @@ function StudentDashboard() {
                   React.createElement(
                     "div",
                     { className: "d-flex align-items-center justify-content-between" },
-                    React.createElement("div", { className: "text-muted small" }, "Cluster Group"),
-                    React.createElement(
-                      "span",
-                      { className: "badge bg-" + clusterInfo.badge + " fs-6" },
-                      clusterInfo.grade + " - " + clusterInfo.meaning
-                    )
+                    React.createElement("div", { className: "text-muted small" }, "Group"),
+                    React.createElement("span", { className: "badge bg-" + clusterInfo.badge + " fs-6" }, clusterInfo.grade + " - " + clusterInfo.meaning)
                   ),
                   React.createElement("div", { className: "text-muted small mt-2" }, clusterInfo.note)
                 )
-              : React.createElement(AlertMessage, { type: "info", text: "Cluster not assigned yet. Ask faculty/admin to run clustering." }),
+              : React.createElement(AlertMessage, { type: "info", text: "Performance group not available yet (record missing)." }),
 
             React.createElement(
               "div",
               { className: "mt-3" },
               React.createElement(
                 "button",
-                {
-                  className: "btn btn-outline-dark w-100",
-                  onClick: function () {
-                    window.location.href = "/student/cluster";
-                  }
-                },
-                "View Cluster Details"
+                { className: "btn btn-outline-dark w-100", onClick: function () { window.location.href = "/student/cluster"; } },
+                "View Group Details"
               )
             )
           )
         )
       ),
 
-      // Suggestions
       React.createElement(
         "div",
         { className: "col-lg-4" },
@@ -455,12 +430,7 @@ function StudentDashboard() {
               { className: "mt-3" },
               React.createElement(
                 "button",
-                {
-                  className: "btn btn-dark w-100",
-                  onClick: function () {
-                    window.location.href = "/student/suggestions";
-                  }
-                },
+                { className: "btn btn-dark w-100", onClick: function () { window.location.href = "/student/suggestions"; } },
                 "Open Suggestions Page"
               )
             )

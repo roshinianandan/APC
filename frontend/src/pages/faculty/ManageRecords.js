@@ -1,8 +1,32 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import PageContainer from "../../components/PageContainer";
 import Loader from "../../components/Loader";
 import AlertMessage from "../../components/AlertMessage";
 import { useUpsertRecordMutation, useListRecordsQuery } from "../../features/records/recordsApi";
+
+/** ---------------------------
+ *  Risk logic (NOT random)
+ *  --------------------------- */
+function calcRisk(record) {
+  const att = Number(record.attendancePct || 0);
+  const cgpa = Number(record.cgpa || 0);
+  const backlogs = Number(record.backlogs || 0);
+
+  // HIGH risk rules
+  if (backlogs > 0 || cgpa < 6.5 || att < 65) return "HIGH";
+
+  // MODERATE rules
+  if ((cgpa >= 6.5 && cgpa < 7.5) || (att >= 65 && att < 75)) return "MODERATE";
+
+  // SAFE
+  return "SAFE";
+}
+
+function riskBadgeClass(risk) {
+  if (risk === "HIGH") return "badge bg-danger";
+  if (risk === "MODERATE") return "badge bg-warning text-dark";
+  return "badge bg-success";
+}
 
 function ManageRecords() {
   const [department, setDepartment] = useState("CSE");
@@ -30,8 +54,7 @@ function ManageRecords() {
 
   // ✅ Prefill form for update
   const onEdit = function (r) {
-    const sid =
-      r.studentId && typeof r.studentId === "object" ? r.studentId._id : r.studentId;
+    const sid = r.studentId && typeof r.studentId === "object" ? r.studentId._id : r.studentId;
 
     setStudentId(String(sid || ""));
     setDepartment(String(r.department || department));
@@ -70,7 +93,6 @@ function ManageRecords() {
       await upsertRecord(payload).unwrap();
       setMsg("Record saved successfully");
       listState.refetch();
-      // optional: clear after save
       // clearForm();
     } catch (ex) {
       setErr(ex && ex.data && ex.data.message ? ex.data.message : "Save failed");
@@ -98,16 +120,21 @@ function ManageRecords() {
 
       setMsg("Record deleted successfully");
       listState.refetch();
-
-      // if the deleted record was in the form, clear it
-      // (safe check)
-      if (studentId && String(studentId) === String(recordId)) {
-        clearForm();
-      }
     } catch (e) {
       setErr(e && e.message ? e.message : "Delete failed");
     }
   };
+
+  // ✅ quick stats (professional)
+  const riskCounts = useMemo(function () {
+    const out = { HIGH: 0, MODERATE: 0, SAFE: 0 };
+    const rows = (listState.data && listState.data.records) ? listState.data.records : [];
+    rows.forEach(function (r) {
+      const risk = calcRisk(r);
+      out[risk] += 1;
+    });
+    return out;
+  }, [listState.data]);
 
   let table = null;
 
@@ -132,7 +159,8 @@ function ManageRecords() {
             React.createElement("th", null, "CGPA"),
             React.createElement("th", null, "Internal"),
             React.createElement("th", null, "Backlogs"),
-            React.createElement("th", { style: { width: 170 } }, "Actions")
+            React.createElement("th", null, "Risk Status"), // ✅ NEW
+            React.createElement("th", { style: { width: 200 } }, "Actions")
           )
         ),
         React.createElement(
@@ -140,6 +168,8 @@ function ManageRecords() {
           null,
           listState.data.records.map(function (r) {
             const s = r.studentId || {};
+            const risk = calcRisk(r);
+
             return React.createElement(
               "tr",
               { key: r._id },
@@ -149,7 +179,14 @@ function ManageRecords() {
               React.createElement("td", null, String(r.avgInternal)),
               React.createElement("td", null, String(r.backlogs)),
 
-              // ✅ NEW: Update + Delete buttons
+              // ✅ NEW badge
+              React.createElement(
+                "td",
+                null,
+                React.createElement("span", { className: riskBadgeClass(risk) }, risk)
+              ),
+
+              // ✅ Update + Delete
               React.createElement(
                 "td",
                 null,
@@ -194,6 +231,55 @@ function ManageRecords() {
     msg ? React.createElement(AlertMessage, { type: "success", text: msg }) : null,
     err ? React.createElement(AlertMessage, { type: "danger", text: err }) : null,
 
+    // ✅ Professional summary row
+    React.createElement(
+      "div",
+      { className: "row g-2 mb-3" },
+      React.createElement(
+        "div",
+        { className: "col-md-4" },
+        React.createElement(
+          "div",
+          { className: "card" },
+          React.createElement(
+            "div",
+            { className: "card-body" },
+            React.createElement("div", { className: "text-muted small" }, "High Risk"),
+            React.createElement("div", { className: "fs-4 fw-bold text-danger" }, String(riskCounts.HIGH))
+          )
+        )
+      ),
+      React.createElement(
+        "div",
+        { className: "col-md-4" },
+        React.createElement(
+          "div",
+          { className: "card" },
+          React.createElement(
+            "div",
+            { className: "card-body" },
+            React.createElement("div", { className: "text-muted small" }, "Moderate Risk"),
+            React.createElement("div", { className: "fs-4 fw-bold text-warning" }, String(riskCounts.MODERATE))
+          )
+        )
+      ),
+      React.createElement(
+        "div",
+        { className: "col-md-4" },
+        React.createElement(
+          "div",
+          { className: "card" },
+          React.createElement(
+            "div",
+            { className: "card-body" },
+            React.createElement("div", { className: "text-muted small" }, "Safe"),
+            React.createElement("div", { className: "fs-4 fw-bold text-success" }, String(riskCounts.SAFE))
+          )
+        )
+      )
+    ),
+
+    // Filters
     React.createElement(
       "div",
       { className: "card mb-3" },
@@ -232,12 +318,7 @@ function ManageRecords() {
             { className: "col-md-4 d-flex align-items-end" },
             React.createElement(
               "button",
-              {
-                className: "btn btn-outline-dark w-100",
-                onClick: function () {
-                  listState.refetch();
-                }
-              },
+              { className: "btn btn-outline-dark w-100", onClick: function () { listState.refetch(); } },
               "Refresh List"
             )
           )
@@ -245,6 +326,7 @@ function ManageRecords() {
       )
     ),
 
+    // Upsert form
     React.createElement(
       "div",
       { className: "card mb-3" },
@@ -263,9 +345,7 @@ function ManageRecords() {
             React.createElement("input", {
               className: "form-control",
               value: studentId,
-              onChange: function (e) {
-                setStudentId(e.target.value);
-              }
+              onChange: function (e) { setStudentId(e.target.value); }
             })
           ),
           React.createElement(
@@ -275,9 +355,7 @@ function ManageRecords() {
             React.createElement("input", {
               className: "form-control",
               value: attendancePct,
-              onChange: function (e) {
-                setAttendancePct(e.target.value);
-              }
+              onChange: function (e) { setAttendancePct(e.target.value); }
             })
           ),
           React.createElement(
@@ -287,9 +365,7 @@ function ManageRecords() {
             React.createElement("input", {
               className: "form-control",
               value: cgpa,
-              onChange: function (e) {
-                setCgpa(e.target.value);
-              }
+              onChange: function (e) { setCgpa(e.target.value); }
             })
           ),
           React.createElement(
@@ -299,9 +375,7 @@ function ManageRecords() {
             React.createElement("input", {
               className: "form-control",
               value: avgInternal,
-              onChange: function (e) {
-                setAvgInternal(e.target.value);
-              }
+              onChange: function (e) { setAvgInternal(e.target.value); }
             })
           ),
           React.createElement(
@@ -311,9 +385,7 @@ function ManageRecords() {
             React.createElement("input", {
               className: "form-control",
               value: backlogs,
-              onChange: function (e) {
-                setBacklogs(e.target.value);
-              }
+              onChange: function (e) { setBacklogs(e.target.value); }
             })
           ),
           React.createElement(
@@ -330,11 +402,7 @@ function ManageRecords() {
         React.createElement(
           "div",
           { className: "mt-3 d-flex gap-2 flex-wrap" },
-          React.createElement(
-            "button",
-            { className: "btn btn-outline-dark btn-sm", onClick: clearForm },
-            "Clear Form"
-          )
+          React.createElement("button", { className: "btn btn-outline-dark btn-sm", onClick: clearForm }, "Clear Form")
         )
       )
     ),
