@@ -1,19 +1,23 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
+function getUser() {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "null");
+  } catch (e) {
+    return null;
+  }
+}
+
+function activeClass(pathname, to) {
+  return pathname.indexOf(to) === 0 ? " active fw-semibold" : "";
+}
+
 function Navbar() {
+  const user = getUser();
+  const role = user?.role || "";
   const location = useLocation();
   const navigate = useNavigate();
-
-  const user = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem("user") || "null");
-    } catch {
-      return null;
-    }
-  }, []);
-
-  const role = user && user.role ? String(user.role).toLowerCase() : "";
 
   function logout() {
     localStorage.removeItem("accessToken");
@@ -21,145 +25,150 @@ function Navbar() {
     navigate("/login");
   }
 
-  function roleBadgeClass(r) {
-    if (r === "admin") return "badge bg-danger-subtle text-danger border border-danger-subtle";
-    if (r === "faculty") return "badge bg-warning-subtle text-warning border border-warning-subtle";
-    if (r === "student") return "badge bg-info-subtle text-info border border-info-subtle";
-    return "badge bg-secondary-subtle text-secondary border border-secondary-subtle";
-  }
-
-  function isActive(to) {
-    // exact matching for main pages
-    if (to === "/") return location.pathname === "/";
-    return location.pathname === to || location.pathname.startsWith(to + "/");
-  }
-
-  const homeLink = !user
-    ? "/"
-    : role === "student"
-    ? "/student"
-    : role === "faculty"
-    ? "/faculty"
-    : "/admin";
-
   let links = [];
 
-  if (!user) {
-    links = [
-      { to: "/login", label: "Login" },
-      { to: "/register", label: "Register" }
-    ];
-  } else if (role === "student") {
-    links = [
-      { to: "/student", label: "Dashboard" },
-      { to: "/student/record", label: "My Record" },
-      { to: "/student/cluster", label: "My Cluster" },
-      { to: "/student/suggestions", label: "Suggestions" }
-    ];
-  } else if (role === "faculty") {
-    links = [
-      { to: "/faculty", label: "Dashboard" },
-      { to: "/faculty/records", label: "Manage Records" },
-      { to: "/faculty/run", label: "Run Clustering" },
-      { to: "/faculty/results", label: "Cluster Results" }
-    ];
-  } else {
-    // admin
-    links = [
-      { to: "/admin", label: "Dashboard" },
-      { to: "/admin/users", label: "Users" },
-      { to: "/faculty/records", label: "Records" },
-      { to: "/faculty/run", label: "Clustering" },
-      { to: "/faculty/results", label: "Results" }
-    ];
+  if (user) {
+    const r = role.toLowerCase();
+
+    if (r === "student") {
+      links = [
+        { to: "/student", label: "Dashboard" },
+        { to: "/student/record", label: "My Record" },
+        { to: "/student/cluster", label: "My Group" },
+        { to: "/student/suggestions", label: "Suggestions" }
+      ];
+    } else if (r === "faculty") {
+      links = [
+        { to: "/faculty", label: "Dashboard" },
+        { to: "/faculty/records", label: "Records" },
+        { to: "/faculty/clustering", label: "Clustering" },
+        { to: "/faculty/results", label: "Results" }
+      ];
+    } else {
+      links = [
+        { to: "/admin", label: "Dashboard" },
+        { to: "/admin/users", label: "Users" },
+        { to: "/faculty/records", label: "Records" },
+        { to: "/faculty/clustering", label: "Clustering" },
+        { to: "/faculty/results", label: "Results" }
+      ];
+    }
   }
 
-  return React.createElement(
-    "nav",
-    { className: "navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm" },
-    React.createElement(
-      "div",
-      { className: "container" },
+  const homeLink =
+    role === "student"
+      ? "/student"
+      : role === "faculty"
+      ? "/faculty"
+      : role === "admin"
+      ? "/admin"
+      : "/";
 
-      // Brand
-      React.createElement(
-        Link,
-        { className: "navbar-brand fw-bold d-flex align-items-center gap-2", to: homeLink },
-        React.createElement("span", { className: "brand-dot" }),
-        "Academic Clustering"
-      ),
+  function roleBadge(role) {
+    const r = role.toLowerCase();
 
-      // Mobile toggler
-      React.createElement(
-        "button",
-        {
-          className: "navbar-toggler",
-          type: "button",
-          "data-bs-toggle": "collapse",
-          "data-bs-target": "#mainNavbar",
-          "aria-controls": "mainNavbar",
-          "aria-expanded": "false",
-          "aria-label": "Toggle navigation"
-        },
-        React.createElement("span", { className: "navbar-toggler-icon" })
-      ),
+    if (r === "admin")
+      return (
+        <span
+          className="px-3 py-2 rounded-pill fw-semibold text-white"
+          style={{ background: "#7c3aed" }} // Bright Purple
+        >
+          ADMIN
+        </span>
+      );
 
-      React.createElement(
-        "div",
-        { className: "collapse navbar-collapse", id: "mainNavbar" },
+    if (r === "faculty")
+      return (
+        <span
+          className="px-3 py-2 rounded-pill fw-semibold text-white"
+          style={{ background: "#2563eb" }} // Bright Blue
+        >
+          FACULTY
+        </span>
+      );
 
-        // Left links
-        React.createElement(
-          "ul",
-          { className: "navbar-nav me-auto mb-2 mb-lg-0" },
-          links.map(function (l) {
-            return React.createElement(
-              "li",
-              { className: "nav-item", key: l.to },
-              React.createElement(
-                Link,
-                {
-                  className: "nav-link " + (isActive(l.to) ? "active fw-semibold nav-active" : ""),
-                  to: l.to
-                },
-                l.label
-              )
-            );
-          })
-        ),
+    if (r === "student")
+      return (
+        <span
+          className="px-3 py-2 rounded-pill fw-semibold text-white"
+          style={{ background: "#16a34a" }} // Bright Green
+        >
+          STUDENT
+        </span>
+      );
 
-        // Right user section
-        user
-          ? React.createElement(
-              "div",
-              { className: "d-flex align-items-center gap-2" },
+    return null;
+  }
 
-              React.createElement(
-                "span",
-                { className: roleBadgeClass(role) },
-                role.toUpperCase()
-              ),
+  return (
+    <nav
+      className="navbar navbar-expand-lg shadow-sm"
+      style={{ background: "#1f2937" }} // Modern dark gray (not pure black)
+    >
+      <div className="container">
 
-              React.createElement(
-                "span",
-                { className: "text-white-50 small d-none d-lg-inline" },
-                user.name ? String(user.name) : "User"
-              ),
+        {/* Brand */}
+        <Link to={homeLink} className="navbar-brand fw-bold text-white">
+          🎓 Academic Clustering
+        </Link>
 
-              React.createElement(
-                "button",
-                { className: "btn btn-sm btn-outline-light", onClick: logout },
-                "Logout"
-              )
-            )
-          : React.createElement(
-              "div",
-              { className: "d-flex gap-2" },
-              React.createElement(Link, { className: "btn btn-sm btn-outline-light", to: "/login" }, "Login"),
-              React.createElement(Link, { className: "btn btn-sm btn-light", to: "/register" }, "Register")
-            )
-      )
-    )
+        <button
+          className="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#mainNavbar"
+        >
+          <span className="navbar-toggler-icon" />
+        </button>
+
+        <div className="collapse navbar-collapse" id="mainNavbar">
+
+          {/* Center Links */}
+          <ul className="navbar-nav mx-auto">
+            {links.map((l) => (
+              <li className="nav-item" key={l.to}>
+                <Link
+                  className={
+                    "nav-link text-light px-3" +
+                    activeClass(location.pathname, l.to)
+                  }
+                  to={l.to}
+                >
+                  {l.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          {/* Right Side */}
+          {user && (
+            <div className="d-flex align-items-center gap-3">
+
+              {roleBadge(role)}
+
+              <span className="text-light small fw-medium">
+                {user.name || "User"}
+              </span>
+
+              {/* Bright Logout Button */}
+              <button
+                onClick={logout}
+                className="btn fw-semibold text-white"
+                style={{
+                  background: "#f59e0b", // Bright Orange
+                  border: "none",
+                  padding: "6px 16px",
+                  borderRadius: "8px"
+                }}
+              >
+                Logout
+              </button>
+
+            </div>
+          )}
+        </div>
+      </div>
+    </nav>
   );
 }
 
